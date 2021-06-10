@@ -19,9 +19,10 @@ use parquet::file::{
 };
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::convert::TryFrom;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use crate::action::CommitInfo;
 
 use super::action;
 use super::action::{Action, DeltaOperation};
@@ -272,7 +273,7 @@ struct DeltaTableState {
     // A tombstone expires when the creation timestamp of the delta file exceeds the expiration
     tombstones: Vec<action::Remove>,
     files: Vec<action::Add>,
-    commit_infos: Vec<Value>,
+    commit_infos: Vec<action::CommitInfo>,
     app_transaction_version: HashMap<String, DeltaDataTypeVersion>,
     min_reader_version: i32,
     min_writer_version: i32,
@@ -349,6 +350,17 @@ impl DeltaTable {
         }
 
         checkpoint_data_paths
+    }
+
+    /// Retruns commit history
+    pub async fn history(&mut self) -> Result<Vec<CommitInfo>, DeltaTableError> {
+        self.load().await?;
+        Ok(self
+            .state
+            .commit_infos
+            .iter()
+            .map(CommitInfo::clone)
+            .collect())
     }
 
     async fn get_last_checkpoint(&self) -> Result<CheckPoint, LoadCheckpointError> {
